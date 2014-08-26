@@ -1,0 +1,109 @@
+#+REVEAL_ROOT: http://rawgit.com/hakimel/reveal.js/master/
+# #+REVEAL_ROOT: reveal.js/
+#+OPTIONS: num:nil
+#+OPTIONS: toc:nil
+#+TITLE: Om No!
+#+AUTHOR:
+#+EMAIL:
+* Background
+- 5k+ LOC, fairly complex app, almost entirely logic
+- 100% Om
+- we really wanted things to work with Om
+- but we hit a wall
+- made a switch to Reagent instead
+* The Good
+** Global Undo
+- this is pretty cool
+- Om makes it really easy to do
+- could not be used at all for our app
+- only useful for side-effect-less applications (graphical editors, etc.)
+  - even then you probably want local undo
+** One Atom
+- printing out all the state is awesome for debugging
+* The Bad
+** The API
+*** The API is Error-prone
+- the ~reify~-ed objects are only useful with a ~build~ or ~build-all~
+- why burden the programmer to remember to do it properly?
+- when you have a mix of functions, you now have to have some way to remember which ones return ~reify~-ed objects and which are normal functions
+*** The API is Verbose
+- ~om/IWillMount (will-mount [this] ...)~
+- what is this, Java?
+*** The API is Incomplete
+- we had to implement ~IShouldUpdate~
+- this was an older version, when re-rendering was based on ~identical?~ instead of ~=~
+- everything was too slow (much slower than AngularJS)
+- "You should only implement this if you really know what you're doing. Even then you probably shouldn't."
+- a part was left out: "you probably shouldn't because the original uses local variables that aren't part of the API, meaning that you can't slightly tweak the original should-update function and you'll have to break a lot of functionality"
+*** The API
+- we had syntactic sugar for all of these problems
+- honestly we could live with it
+- all of these add UNNECESSARY complexity
+** No Anonymous Components
+- no anonymous functions as components
+- no error messages / warnings, it just re-mounts every time
+- if you're lucky and your component is slow enough, it will flicker so you can catch it
+** No First-class Components
+- we found wrapping components with other components to be a useful pattern
+- Om didn't: can't pass them to other components and compose them
+** Cursors
+*** (= cursors pointers)
+- Cursors are pointers into the app state
+- the data that a cursor points to may have changed, an async ~transact!~ will not have changed though
+- what is this, C++?
+- especially bad in a primarily asynchronous environment
+*** Local State Mixed With Global State
+- this is not necessary AFAIK, but is idiomatic
+- local state could be anywhere mixed with the global state
+- it feels wrong
+- there are real downsides: now we can't overwrite a chunk of the state with new data
+*** More Gotchas
+- cursors behave like maps
+- you can pass maps in like cursors
+- except when you want to ~transact!~
+- two choices:
+  - lose benefit of abstraction, use maps when maps should be used
+  - call every single function like this:
+    #+BEGIN_SRC clojure
+      (om/build some-components
+                (assoc data-you-dont-need
+                  :important-key important-value))
+    #+END_SRC
+    - boilerplate
+    - encourages giving more data than is necessary
+- an argument can be made that you should be explicit about where children components can store their data, but does it have to be so verbose?
+** "Need to Know" Principle
+- components work best when they know as little data as possible
+- that way, unnecessary re-rendering doesn't have to occur
+- Om is a very poor fit for this:
+  - app state is in a tree: always need knowledge of the lowest common ancestor
+  - parents must know everything all children know
+- this results in either:
+  - the same data in multiple places
+  - a performance hit
+* Tough Times
+- That last problem was a killer
+  - it was hard to be consistent
+  - it was hard to be performant
+- we were about to implement a DAG that automatically re-constructs an app state tree by denormalizing ground-truth data when that data changes
+- but then we discovered...
+* Reagent Exists
+** Why?
+- [X] principle of least suprise (mostly)
+- [X] all of Clojure-y goodness works
+- [X] data model works better with React.js
+** A Story
+- I made the move from Om -> Reagent over a long weekend
+- we had a new guy starting
+- co-worker was able to TEACH the new codebase to the new guy perfectly (without ever seeing the code or Reagent before)
+- (I cannot think of a better recommendation of a working API)
+** Our experience
+- it has been much more pleasurable using Reagent
+- I cannot think of a scenario that I would rather use Om than Reagent
+  - especially not for code to be maintained by more than just myself
+  - especially not in a complex app
+  - especially not when performance is critical
+* Conclusion
+- from the outside, Om looks like it takes advantage of all the Clojure-y goodness
+- turns out that you lose a lot of that
+- Reagent solves every problem with Om we've had, and more, and it's an absolute pleasure to work with
